@@ -1,0 +1,541 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Intro Animation</title>
+
+<style>
+*{
+    margin:0;
+    padding:0;
+    box-sizing:border-box;
+}
+
+body{
+    min-height:100vh;
+    background:#e8ebea;
+    color:#192320;
+    font-family:"Trebuchet MS", sans-serif;
+}
+
+main{
+    display:grid;
+    grid-template-columns:minmax(280px, 360px) minmax(0, 1fr);
+    min-height:100vh;
+}
+
+#editor{
+    padding:clamp(24px, 4vw, 48px);
+    background:#fff;
+    border-right:1px solid #d5ddda;
+}
+
+#editor h1{
+    font-family:Georgia, serif;
+    font-size:30px;
+    font-weight:normal;
+    line-height:1.1;
+    margin-bottom:28px;
+}
+
+#editor label{
+    display:block;
+    margin-bottom:7px;
+    font-size:13px;
+    font-weight:bold;
+}
+
+#editor input{
+    width:100%;
+    padding:11px 12px;
+    margin-bottom:18px;
+    border:1px solid #aab9b3;
+    border-radius:4px;
+    background:#fff;
+    color:#192320;
+    font:inherit;
+}
+
+#editor input:focus-visible, #gifToggle:focus-visible{
+    outline:2px solid #147a6b;
+    outline-offset:2px;
+}
+
+#sentenceCount{
+    max-width:95px;
+}
+
+#previewArea{
+    display:flex;
+    flex-direction:column;
+    justify-content:center;
+    align-items:center;
+    gap:18px;
+    padding:clamp(20px, 5vw, 64px);
+    min-width:0;
+}
+
+#preview{
+    position:relative;
+    width:100%;
+    aspect-ratio:16 / 9;
+    background:#f5f5f5;
+    border:1px solid #c7d0cc;
+    overflow:hidden;
+}
+
+canvas{
+    position:absolute;
+    top:0;
+    left:0;
+}
+
+#typingText{
+    position:absolute;
+    top:50%;
+    left:50%;
+    transform:translate(-50%,-50%);
+    font-family:Arial, sans-serif;
+    font-size:min(40px, 4vw);
+    font-weight:bold;
+    color:black;
+    width:calc(100% - 40px);
+    text-align:center;
+    overflow-wrap:anywhere;
+}
+
+#gifControls{
+    display:flex;
+    flex-direction:column;
+    align-items:center;
+    gap:12px;
+    width:100%;
+}
+
+#gifToggle{
+    background:#176e60;
+    color:white;
+    border:none;
+    border-radius:4px;
+    padding:12px 24px;
+    font:600 15px "Trebuchet MS", sans-serif;
+    cursor:pointer;
+}
+
+#gifToggle:hover:not(:disabled){
+    background:#10594d;
+}
+
+#gifToggle:disabled{
+    background:#879690;
+    cursor:not-allowed;
+}
+
+@media (max-width:800px){
+    main{
+        display:flex;
+        flex-direction:column;
+    }
+
+    #editor{
+        border-right:0;
+        border-bottom:1px solid #d5ddda;
+    }
+
+    #previewArea{
+        padding:24px 16px 40px;
+    }
+}
+
+#gifStatus{
+    display:none;
+    color:#36564e;
+    font-size:14px;
+    text-align:center;
+}
+
+#gifStatus.active{
+    display:block;
+}
+
+</style>
+<script src="https://cdn.jsdelivr.net/npm/gif.js@0.2.0/dist/gif.js"></script>
+
+</head>
+
+<body>
+
+<main>
+    <section id="editor" aria-label="Introduction editor">
+        <h1>Your introduction</h1>
+        <label for="sentenceCount">Number of sentences</label>
+        <input id="sentenceCount" type="number" min="1" max="8" value="3">
+        <div id="sentenceFields"></div>
+    </section>
+    <section id="previewArea" aria-label="Animation preview">
+        <div id="preview">
+            <canvas id="canvas"></canvas>
+            <div id="typingText"></div>
+        </div>
+        <div id="gifControls">
+            <button id="gifToggle">Generate GIF</button>
+            <div id="gifStatus" role="status" aria-live="polite"></div>
+        </div>
+    </section>
+</main>
+
+<script>
+
+const canvas = document.getElementById("canvas");
+const ctx = canvas.getContext("2d");
+const preview = document.getElementById("preview");
+
+function resizeCanvas(){
+    canvas.width = preview.clientWidth;
+    canvas.height = preview.clientHeight;
+}
+
+resizeCanvas();
+
+const particles = [];
+const particleCount = 130;
+
+class Particle{
+
+    constructor(){
+
+        this.x = Math.random()*canvas.width;
+        this.y = Math.random()*canvas.height;
+
+        this.vx = (Math.random()-0.5)*0.4;
+        this.vy = (Math.random()-0.5)*0.4;
+
+        this.radius = Math.random()*2+1;
+    }
+
+    update(){
+
+        this.x += this.vx;
+        this.y += this.vy;
+
+        if(this.x < 0 || this.x > canvas.width)
+            this.vx *= -1;
+
+        if(this.y < 0 || this.y > canvas.height)
+            this.vy *= -1;
+    }
+
+    draw(){
+
+        ctx.beginPath();
+        ctx.arc(this.x,this.y,this.radius,0,Math.PI*2);
+        ctx.fillStyle="rgba(50,50,50,0.8)";
+        ctx.fill();
+    }
+}
+
+for(let i=0;i<particleCount;i++)
+{
+    particles.push(new Particle());
+}
+
+function connectParticles(){
+
+    for(let a=0;a<particles.length;a++){
+
+        for(let b=a;b<particles.length;b++){
+
+            let dx = particles[a].x - particles[b].x;
+            let dy = particles[a].y - particles[b].y;
+
+            let distance = Math.sqrt(dx*dx + dy*dy);
+
+            if(distance < 170){
+
+                ctx.strokeStyle =
+                    `rgba(100,100,100,${0.25-distance/170})`;
+
+                ctx.lineWidth = 1;
+
+                ctx.beginPath();
+                ctx.moveTo(
+                    particles[a].x,
+                    particles[a].y
+                );
+
+                ctx.lineTo(
+                    particles[b].x,
+                    particles[b].y
+                );
+
+                ctx.stroke();
+            }
+        }
+    }
+}
+
+function animate(){
+
+    ctx.clearRect(0,0,canvas.width,canvas.height);
+
+    particles.forEach(p=>{
+
+        p.update();
+        p.draw();
+
+    });
+
+    connectParticles();
+
+    requestAnimationFrame(animate);
+}
+
+animate();
+
+
+
+// TYPEWRITER EFFECT
+
+const textElement =
+document.getElementById("typingText");
+
+const messages = ["Hello, I'm Alex", "I build things for the web", "Nice to meet you!"];
+const sentenceCount = document.getElementById("sentenceCount");
+const sentenceFields = document.getElementById("sentenceFields");
+
+function renderSentenceFields(){
+    sentenceFields.replaceChildren();
+    messages.forEach((message, position)=>{
+        const label = document.createElement("label");
+        label.htmlFor = `sentence-${position}`;
+        label.textContent = `Sentence ${position + 1}`;
+
+        const input = document.createElement("input");
+        input.id = label.htmlFor;
+        input.type = "text";
+        input.maxLength = 100;
+        input.value = message;
+        input.addEventListener("input", ()=>{
+            messages[position] = input.value;
+            if(!isRecording)
+                restartTypeWriter();
+        });
+        sentenceFields.append(label, input);
+    });
+}
+
+sentenceCount.addEventListener("change", ()=>{
+    const count = Math.max(1, Math.min(8, Number(sentenceCount.value) || 1));
+    sentenceCount.value = count;
+    while(messages.length < count)
+        messages.push("");
+    messages.length = count;
+    renderSentenceFields();
+    restartTypeWriter();
+});
+
+renderSentenceFields();
+
+let index = 0;
+let messageIndex = 0;
+let typingTimer = null;
+let isRecording = false;
+let onSequenceComplete = null;
+
+function typeWriter(){
+
+    const message = messages[messageIndex];
+
+    if(index < message.length){
+        textElement.textContent =
+            message.substring(0,index+1) + "|";
+
+        index++;
+
+        typingTimer = setTimeout(typeWriter,100);
+    }else{
+        typingTimer = setTimeout(()=>{
+            if(isRecording && messageIndex === messages.length - 1){
+                isRecording = false;
+                onSequenceComplete();
+                onSequenceComplete = null;
+            }
+
+            messageIndex = (messageIndex + 1) % messages.length;
+            index = 0;
+            textElement.textContent = "";
+            typeWriter();
+        },1200);
+    }
+}
+
+function restartTypeWriter(){
+    clearTimeout(typingTimer);
+    index = 0;
+    messageIndex = 0;
+    textElement.textContent = "";
+    typeWriter();
+}
+
+typeWriter();
+
+
+new ResizeObserver(resizeCanvas).observe(preview);
+
+
+
+// GIF EXPORT
+
+const gifToggle = document.getElementById("gifToggle");
+const gifStatus = document.getElementById("gifStatus");
+
+const GIF_FPS = 20;
+const GIF_MAX_WIDTH = 800;
+let workerUrlPromise = null;
+
+gifToggle.addEventListener("click", startGifExport);
+
+function setGifStatus(message){
+    gifStatus.textContent = message;
+    gifStatus.classList.toggle("active", Boolean(message));
+}
+
+// Worker must be same-origin, so load it as a blob URL
+function getWorkerUrl(){
+    if(!workerUrlPromise){
+        workerUrlPromise =
+            fetch("https://cdn.jsdelivr.net/npm/gif.js@0.2.0/dist/gif.worker.js")
+            .then(r=>{
+                if(!r.ok) throw new Error("GIF worker unavailable");
+                return r.blob();
+            })
+            .then(b=>URL.createObjectURL(b));
+    }
+    return workerUrlPromise;
+}
+
+function drawFrame(frameCtx, w, h){
+    const scale = w / canvas.width;
+
+    frameCtx.fillStyle = "#f5f5f5";
+    frameCtx.fillRect(0,0,w,h);
+    frameCtx.drawImage(canvas, 0, 0, w, h);
+
+    frameCtx.fillStyle = "black";
+    const fontSize = parseFloat(getComputedStyle(textElement).fontSize) * scale;
+    frameCtx.font = `bold ${fontSize}px Arial, sans-serif`;
+    frameCtx.textAlign = "center";
+    frameCtx.textBaseline = "middle";
+    const maxWidth = w - 40 * scale;
+    const words = textElement.textContent.split(" ");
+    const lines = [];
+    let line = "";
+    for(const word of words){
+        const next = line ? `${line} ${word}` : word;
+        if(line && frameCtx.measureText(next).width > maxWidth){
+            lines.push(line);
+            line = word;
+        }else{
+            line = next;
+        }
+    }
+    lines.push(line);
+    const lineHeight = fontSize * 1.2;
+    lines.forEach((text, position)=>{
+        frameCtx.fillText(text, w/2, h/2 + (position - (lines.length - 1)/2)*lineHeight, maxWidth);
+    });
+}
+
+async function startGifExport(){
+    const inputs = sentenceFields.querySelectorAll("input");
+    if([...inputs].some(input=>!input.value.trim())){
+        setGifStatus("Fill in every sentence before generating.");
+        return;
+    }
+
+    gifToggle.disabled = true;
+    sentenceCount.disabled = true;
+    inputs.forEach(input=>input.disabled = true);
+    setGifStatus("Preparing...");
+
+    let workerScript;
+    try{
+        workerScript = await getWorkerUrl();
+    }catch(e){
+        setGifStatus("Failed to load GIF encoder.");
+        gifToggle.disabled = false;
+        sentenceCount.disabled = false;
+        inputs.forEach(input=>input.disabled = false);
+        workerUrlPromise = null;
+        return;
+    }
+
+    const scale = Math.min(1, GIF_MAX_WIDTH / canvas.width);
+    const w = Math.round(canvas.width * scale);
+    const h = Math.round(canvas.height * scale);
+
+    const frameCanvas = document.createElement("canvas");
+    frameCanvas.width = w;
+    frameCanvas.height = h;
+    const frameCtx = frameCanvas.getContext("2d");
+
+    const gif = new GIF({
+        workers: 4,
+        quality: 10,
+        width: w,
+        height: h,
+        workerScript
+    });
+
+    const delay = 1000 / GIF_FPS;
+    let captured = 0;
+    let captureTimer;
+
+    function finishRecording(){
+        clearTimeout(captureTimer);
+        setGifStatus("Rendering...");
+        gif.render();
+    }
+
+    function capture(){
+        if(!isRecording)
+            return;
+
+        drawFrame(frameCtx, w, h);
+        gif.addFrame(frameCtx, { copy: true, delay });
+        captured++;
+        setGifStatus(`Recording... ${Math.floor(captured / GIF_FPS)}s`);
+        captureTimer = setTimeout(capture, delay);
+    }
+
+    gif.on("progress", p=>{
+        setGifStatus(`Rendering ${Math.round(p*100)}%`);
+    });
+
+    gif.on("finished", blob=>{
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement("a");
+        a.href = url;
+        a.download = "intro-animation.gif";
+        document.body.appendChild(a);
+        a.click();
+        a.remove();
+        setTimeout(()=>URL.revokeObjectURL(url), 1000);
+
+        setGifStatus("Done! GIF downloaded.");
+        gifToggle.disabled = false;
+        sentenceCount.disabled = false;
+        inputs.forEach(input=>input.disabled = false);
+    });
+
+    onSequenceComplete = finishRecording;
+    isRecording = true;
+    restartTypeWriter();
+    capture();
+}
+
+</script>
+
+</body>
+</html>
